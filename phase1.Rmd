@@ -4,6 +4,100 @@ output: pdf_document
 date: "2026-05-05"
 ---
 ```{r}
+# install.packages("readxl")
+# install.packages("ggplot2")
+# install.packages("dplyr")
+# install.packages("car")
+library(readxl)
+library(ggplot2)
+library(dplyr)
+library(car)
+```
 
+```{r}
+# Set working directory if needed
+# setwd("your/path/here")
+
+# Read Excel file
+temp <- read.csv("temp.csv")
+ph <- read.csv("ph.csv")
+temp_data <- temp[0:4]
+ph_data <- ph[0:4]
+
+# Ensure 'trial' and the treatment variables are factors for ANOVA
+temp_data$Trial <- as.factor(temp_data$Trial)
+temp_data$Temp  <- as.factor(temp_data$Temp)
+
+ph_data$Trial <- as.factor(ph_data$Trial)
+ph_data$pH    <- as.factor(ph_data$pH)
+
+names(temp_data)[names(temp_data) == "Diameter..cm."] <- "Diameter"
+names(ph_data)[names(ph_data) == "Diameter..cm."] <- "Diameter"
+
+head(temp_data)
+head(ph_data)
+```
+
+```{r}
+# define a function to run this workflow for either dataset
+analyze_growth <- function(data, treatment_col) {
+  
+  cat("\n--- ANALYZING:", treatment_col, "---\n")
+  
+  # A. Fit 2-Way ANOVA Model
+  # formula: Diameter ~ Treatment + Trial + Treatment:Trial
+  formula_anova <- as.formula(paste("Diameter ~", treatment_col, "* Trial"))
+  anova_model <- lm(formula_anova, data = data)
+  anova_results <- summary(aov(anova_model))
+  print(anova_results)
+  
+  # B. Assumption Checks
+  # 1. Residual vs Fitted (Constant Variance)
+  plot(anova_model, which = 1, main = paste("Residuals vs Fitted:", treatment_col))
+  
+  # 2. QQ Plot (Normality)
+  plot(anova_model, which = 2, main = paste("Normal Q-Q:", treatment_col))
+  
+  # 3. Formal Levene's Test for Homogeneity of Variance
+  levene_test <- leveneTest(formula_anova, data = data)
+  print(levene_test)
+  
+  # C. Conditional Linear Regression
+  # Check if Trial or Interaction is significant (p < 0.05)
+  trial_p_val <- anova_results[[1]][["Pr(>F)"]][2]
+  inter_p_val <- anova_results[[1]][["Pr(>F)"]][3]
+  
+  # Convert treatment back to numeric for polynomial regression
+  data[[treatment_col]] <- as.numeric(as.character(data[[treatment_col]]))
+  
+  if (trial_p_val > 0.05) {
+    cat("\nTrial is NOT significant. Fitting basic quadratic model.\n")
+    # Model: Y = b0 + b1*X + b2*X^2
+    reg_formula <- as.formula(paste("Diameter ~", treatment_col, "+ I(", treatment_col, "^2)"))
+  } else {
+    cat("\nTrial IS significant. Fitting complex quadratic model with trial interaction.\n")
+    # Model: Y = b0 + b1*X + b2*X^2 + b3*trial + b4*trial*X + b5*trial*X^2
+    reg_formula <- as.formula(paste("Diameter ~ (", treatment_col, "+ I(", treatment_col, "^2)) * trial"))
+  }
+  
+  final_model <- lm(reg_formula, data = data)
+  
+  # D. Model Selection & Evaluation
+  cat("\n--- Final Model Summary ---\n")
+  print(summary(final_model))
+  
+  cat("\n--- ANOVA Table for Regression ---\n")
+  print(anova(final_model))
+  
+  return(final_model)
+}
+```
+
+```{r}
+temp_model_final <- analyze_growth(temp_data, "Temp")
+```
+
+```{r}
+ph_model_final <- analyze_growth(ph_data, "pH")
 ```
 
