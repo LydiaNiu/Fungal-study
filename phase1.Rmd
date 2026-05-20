@@ -39,65 +39,118 @@ head(ph_data)
 ```
 
 ```{r}
-# define a function to run this workflow for either dataset
-analyze_growth <- function(data, treatment_col) {
-  
-  cat("\n--- ANALYZING:", treatment_col, "---\n")
-  
-  # A. Fit 2-Way ANOVA Model
-  # formula: Diameter ~ Treatment + Trial + Treatment:Trial
-  formula_anova <- as.formula(paste("Diameter ~", treatment_col, "* Trial"))
-  anova_model <- lm(formula_anova, data = data)
-  anova_results <- summary(aov(anova_model))
-  print(anova_results)
-  
-  # B. Assumption Checks
-  # 1. Residual vs Fitted (Constant Variance)
-  plot(anova_model, which = 1, main = paste("Residuals vs Fitted:", treatment_col))
-  
-  # 2. QQ Plot (Normality)
-  plot(anova_model, which = 2, main = paste("Normal Q-Q:", treatment_col))
-  
-  # 3. Formal Levene's Test for Homogeneity of Variance
-  levene_test <- leveneTest(formula_anova, data = data)
-  print(levene_test)
-  
-  # C. Conditional Linear Regression
-  # Check if Trial or Interaction is significant (p < 0.05)
-  trial_p_val <- anova_results[[1]][["Pr(>F)"]][2]
-  inter_p_val <- anova_results[[1]][["Pr(>F)"]][3]
-  
-  # Convert treatment back to numeric for polynomial regression
-  data[[treatment_col]] <- as.numeric(as.character(data[[treatment_col]]))
-  
-  if (trial_p_val > 0.05) {
-    cat("\nTrial is NOT significant. Fitting basic quadratic model.\n")
-    # Model: Y = b0 + b1*X + b2*X^2
-    reg_formula <- as.formula(paste("Diameter ~", treatment_col, "+ I(", treatment_col, "^2)"))
-  } else {
-    cat("\nTrial IS significant. Fitting complex quadratic model with trial interaction.\n")
-    # Model: Y = b0 + b1*X + b2*X^2 + b3*trial + b4*trial*X + b5*trial*X^2
-    reg_formula <- as.formula(paste("Diameter ~ (", treatment_col, "+ I(", treatment_col, "^2)) * trial"))
-  }
-  
-  final_model <- lm(reg_formula, data = data)
-  
-  # D. Model Selection & Evaluation
-  cat("\n--- Final Model Summary ---\n")
-  print(summary(final_model))
-  
-  cat("\n--- ANOVA Table for Regression ---\n")
-  print(anova(final_model))
-  
-  return(final_model)
-}
+# For Temperature Data: Clear Mean + 95% CI Plot broken down by Trial panels
+ggplot(temp_data, aes(x = Temp, y = Diameter, color = Temp)) +
+  stat_summary(fun.data = mean_cl_normal, geom = "errorbar", width = 0.2, size = 1) +
+  stat_summary(fun = mean, geom = "point", size = 3.5, shape = 18) +
+  facet_grid(. ~ Trial, labeller = label_both) +
+  labs(
+    title = "Mean Fungal Growth (95% CI) Across Temperature Treatments",
+    subtitle = "Separated by Experimental Trial to view distribution consistency",
+    x = "Temperature Level",
+    y = "Colony Diameter (cm)"
+  ) +
+  theme_bw() +
+  theme(legend.position = "none") # Legend hidden because x-axis already displays temperature labels
+
+# For pH Data: Clear Mean + 95% CI Plot broken down by Trial panels
+ggplot(ph_data, aes(x = pH, y = Diameter, color = pH)) +
+  stat_summary(fun.data = mean_cl_normal, geom = "errorbar", width = 0.2, size = 1) +
+  stat_summary(fun = mean, geom = "point", size = 3.5, shape = 18) +
+  facet_grid(. ~ Trial, labeller = label_both) +
+  labs(
+    title = "Mean Fungal Growth (95% CI) Across pH Treatments",
+    subtitle = "Separated by Experimental Trial to highlight interaction changes",
+    x = "pH Level",
+    y = "Colony Diameter (cm)"
+  ) +
+  theme_bw() +
+  theme(legend.position = "none")
+```
+```{r}
+# Temperature Interaction Plot
+ggplot(temp_data, aes(x = as.numeric(as.character(Temp)), y = Diameter, color = Trial, group = Trial)) +
+  stat_summary(fun = mean, geom = "line", size = 1) +
+  stat_summary(fun = mean, geom = "point", size = 3) +
+  labs(title = "Interaction Plot: Mean Fungal Growth across Temperatures",
+       x = "Temperature",
+       y = "Mean Diameter (cm)") +
+  theme_classic()
+
+# pH Interaction Plot
+ggplot(ph_data, aes(x = as.numeric(as.character(pH)), y = Diameter, color = Trial, group = Trial)) +
+  stat_summary(fun = mean, geom = "line", size = 1) +
+  stat_summary(fun = mean, geom = "point", size = 3) +
+  labs(title = "Interaction Plot: Mean Fungal Growth across pH Levels",
+       x = "pH Level",
+       y = "Mean Diameter (cm)") +
+  theme_classic()
+```
+
+
+```{r temp-model}
+# 1. Ensure Temp is numeric for polynomial regression modeling
+temp_data_reg <- temp_data
+temp_data_reg$Temp <- as.numeric(as.character(temp_data_reg$Temp))
+
+# 2. Fit basic quadratic model (No Trial factor included)
+temp_model_final <- lm(Diameter ~ Temp + I(Temp^2), data = temp_data_reg)
+
+# 3. Print evaluation outputs
+cat("\n--- Temperature Model Summary ---\n")
+print(summary(temp_model_final))
+
+cat("\n--- ANOVA Table for Temperature Regression ---\n")
+print(anova(temp_model_final))
+
+# 4. Check assumptions
+plot(temp_model_final, which = 1, main = "Residuals vs Fitted: Temperature Model")
+plot(temp_model_final, which = 2, main = "Normal Q-Q: Temperature Model")
+
 ```
 
 ```{r}
-temp_model_final <- analyze_growth(temp_data, "Temp")
+bc <- boxcox(Diameter+0.01 ~ Temp + I(Temp^2), data = temp_data_reg)
+lambda <- bc$x[which.max(bc$y)]
+print(paste("The optimal lambda is:", round(lambda, 2)))
+
+
+temp_data_reg$Transformed_Diameter <- (temp_data_reg$Diameter + 0.01)^0.38
+
+# 3. Fit the quadratic model on the transformed data (No Trial factor needed)
+temp_bc_model <- lm(Transformed_Diameter ~ Temp + I(Temp^2), data = temp_data_reg)
+
+# 4. Print evaluation outputs
+cat("\n--- Box-Cox Transformed Temperature Model Summary (\u03bb = 0.38) ---\n")
+print(summary(temp_bc_model))
+
+cat("\n--- ANOVA Table for Box-Cox Regression ---\n")
+print(anova(temp_bc_model))
+
+# 5. Check updated assumptions to see if funnel shape and Q-Q tails improved
+plot(temp_bc_model, which = 1, main = "Residuals vs Fitted: Box-Cox Model")
+plot(temp_bc_model, which = 2, main = "Normal Q-Q: Box-Cox Model")
 ```
 
-```{r}
-ph_model_final <- analyze_growth(ph_data, "pH")
+
+```{r ph-model}
+# 1. Ensure pH is numeric for regression, but keep Trial as a Factor
+ph_data_reg <- ph_data
+ph_data_reg$pH    <- as.numeric(as.character(ph_data_reg$pH))
+ph_data_reg$Trial <- as.factor(ph_data_reg$Trial)
+
+# 2. Fit specific model: Linear interaction with Trial + Global Quadratic term
+ph_model_final <- lm(Diameter ~ pH:Trial + I(pH^2), data = ph_data_reg)
+
+# 3. Print evaluation outputs
+cat("\n--- pH Model Summary ---\n")
+print(summary(ph_model_final))
+
+cat("\n--- ANOVA Table for pH Regression ---\n")
+print(anova(ph_model_final))
+
+# 4. Check assumptions
+plot(ph_model_final, which = 1, main = "Residuals vs Fitted: pH Model")
+plot(ph_model_final, which = 2, main = "Normal Q-Q: pH Model")
 ```
 
