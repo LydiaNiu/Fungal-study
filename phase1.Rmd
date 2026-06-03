@@ -25,17 +25,134 @@ temp_data <- temp[0:4]
 ph_data <- ph[0:4]
 
 # Ensure 'trial' and the treatment variables are factors for ANOVA
-temp_data$Trial <- as.factor(temp_data$Trial)
-temp_data$Temp  <- as.factor(temp_data$Temp)
+temp_data$Trial <- as.numeric(temp_data$Trial)
+temp_data$Temp  <- as.numeric(temp_data$Temp)
 
-ph_data$Trial <- as.factor(ph_data$Trial)
-ph_data$pH    <- as.factor(ph_data$pH)
+ph_data$Trial <- as.numeric(ph_data$Trial)
+ph_data$pH    <- as.numeric(ph_data$pH)
 
 names(temp_data)[names(temp_data) == "Diameter..cm."] <- "Diameter"
 names(ph_data)[names(ph_data) == "Diameter..cm."] <- "Diameter"
 
 head(temp_data)
 head(ph_data)
+```
+```{r}
+ggplot(temp_data, aes(x = Temp, y = Diameter)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(method = "lm", formula = y ~ x, se = TRUE) +
+  labs(
+    title = "Linear Relationship between Temperature and Diameter",
+    x = "Temperature",
+    y = "Diameter (cm)"
+  ) +
+  theme_bw()
+
+ggplot(temp_data, aes(x = Temp, y = Diameter)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(
+    method = "lm",
+    formula = y ~ poly(x, 2),
+    se = TRUE
+  ) +
+  labs(
+    title = "Quadratic Relationship between Temperature and Diameter",
+    x = "Temperature",
+    y = "Diameter (cm)"
+  ) +
+  theme_bw()
+
+library(ggplot2)
+
+ggplot(temp_data, aes(x = Temp, y = Diameter)) +
+
+  geom_point(size = 2, alpha = 0.7) +
+
+  # Linear
+  geom_smooth(
+    method = "lm",
+    formula = y ~ x,
+    aes(linetype = "Linear"),
+    se = FALSE
+  ) +
+
+  # Quadratic
+  geom_smooth(
+    method = "lm",
+    formula = y ~ poly(x, 2),
+    aes(linetype = "Quadratic"),
+    se = FALSE
+  ) +
+
+  # Cubic
+  geom_smooth(
+    method = "lm",
+    formula = y ~ poly(x, 3),
+    aes(linetype = "Cubic"),
+    se = FALSE
+  ) +
+
+  labs(
+    title = "Temperature Effect on Fungal Growth",
+    x = "Temperature",
+    y = "Diameter (cm)",
+    linetype = "Model"
+  ) +
+
+  theme_bw()
+```
+
+```{r}
+ggplot(temp_data, aes(x = Temp, y = Diameter)) +
+  geom_point(color = "grey30", size = 2.5, alpha = 0.7) +
+  geom_smooth(
+    method = "loess",
+    color = "darkblue",
+    fill = "lightblue",
+    linewidth = 1.5
+  ) +
+  labs(
+    title = "LOESS Trend for Temperature",
+    x = "Temperature",
+    y = "Diameter (cm)"
+  ) +
+  theme_bw()
+```
+```{r}
+
+ggplot(ph_data, aes(x = pH, y = Diameter)) +
+
+  geom_point(size = 2, alpha = 0.7) +
+
+  geom_smooth(
+    method = "lm",
+    formula = y ~ x,
+    aes(linetype = "Linear"),
+    se = FALSE
+  ) +
+
+  geom_smooth(
+    method = "lm",
+    formula = y ~ poly(x, 2),
+    aes(linetype = "Quadratic"),
+    se = FALSE
+  ) +
+
+  geom_smooth(
+    method = "lm",
+    formula = y ~ poly(x, 3),
+    aes(linetype = "Cubic"),
+    se = FALSE
+  ) +
+
+  labs(
+    title = "pH Effect on Fungal Growth",
+    x = "pH",
+    y = "Diameter (cm)",
+    linetype = "Model"
+  ) +
+
+  theme_bw()
 ```
 
 ```{r}
@@ -88,69 +205,86 @@ ggplot(ph_data, aes(x = as.numeric(as.character(pH)), y = Diameter, color = Tria
 ```
 
 
-```{r temp-model}
-# 1. Ensure Temp is numeric for polynomial regression modeling
-temp_data_reg <- temp_data
-temp_data_reg$Temp <- as.numeric(as.character(temp_data_reg$Temp))
 
+# Temp model
+```{r}
+library(dplyr)
+
+# Filter for rows where Diameter is NOT equal to 0
+temp_data <- temp_data %>% filter(Diameter != 0)
+ph_data   <- ph_data   %>% filter(Diameter != 0)
+```
+
+
+```{r temp-model}
 # 2. Fit basic quadratic model (No Trial factor included)
-temp_model_final <- lm(Diameter ~ Temp + I(Temp^2), data = temp_data_reg)
+temp_model <- lm(Diameter ~ (Temp + I(Temp^2) + I(Temp^3)) * Trial, data = temp_data)
 
 # 3. Print evaluation outputs
 cat("\n--- Temperature Model Summary ---\n")
-print(summary(temp_model_final))
+print(summary(temp_model))
 
 cat("\n--- ANOVA Table for Temperature Regression ---\n")
-print(anova(temp_model_final))
+print(anova(temp_model))
+
+temp_model_final <- lm(Diameter ~ (Temp + I(Temp^2) + I(Temp^3)), data = temp_data)
+
 
 # 4. Check assumptions
 plot(temp_model_final, which = 1, main = "Residuals vs Fitted: Temperature Model")
 plot(temp_model_final, which = 2, main = "Normal Q-Q: Temperature Model")
 
 ```
+```{r}
+cat("\n--- Temperature Model Summary ---\n")
+print(summary(temp_model_final))
+
+cat("\n--- ANOVA Table for Temperature Regression ---\n")
+print(anova(temp_model_final))
+```
 
 ```{r}
-bc <- boxcox(Diameter+0.01 ~ Temp + I(Temp^2), data = temp_data_reg)
-lambda <- bc$x[which.max(bc$y)]
-print(paste("The optimal lambda is:", round(lambda, 2)))
+# 1. Scale-Location Plot (Homoscedasticity)
+# Look for a flat horizontal red line with random point spread
+plot(temp_model_final, which = 3, main = "Scale-Location: Temperature Model")
 
+# 2. Cook's Distance (Influential Points)
+# Points 11, 13, and 37 appeared in your other plots; 
+# check if they exceed the dotted red threshold here.
+plot(temp_model_final, which = 4, main = "Cook's Distance: Temperature Model")
 
-temp_data_reg$Transformed_Diameter <- (temp_data_reg$Diameter + 0.01)^0.38
+# 3. Durbin-Watson Test (Independence)
+# Requires the 'car' package
+# A result around 2.0 suggests independence.
+if(!require(car)) install.packages("car")
+library(car)
+durbinWatsonTest(temp_model_final)
 
-# 3. Fit the quadratic model on the transformed data (No Trial factor needed)
-temp_bc_model <- lm(Transformed_Diameter ~ Temp + I(Temp^2), data = temp_data_reg)
-
-# 4. Print evaluation outputs
-cat("\n--- Box-Cox Transformed Temperature Model Summary (\u03bb = 0.38) ---\n")
-print(summary(temp_bc_model))
-
-cat("\n--- ANOVA Table for Box-Cox Regression ---\n")
-print(anova(temp_bc_model))
-
-# 5. Check updated assumptions to see if funnel shape and Q-Q tails improved
-plot(temp_bc_model, which = 1, main = "Residuals vs Fitted: Box-Cox Model")
-plot(temp_bc_model, which = 2, main = "Normal Q-Q: Box-Cox Model")
+# 4. Shapiro-Wilk Test (Formal Normality Check)
+# A p-value > 0.05 means your residuals are normally distributed.
+shapiro.test(residuals(temp_model_final))
 ```
 
 
+
+
+# ph model
+
+
 ```{r ph-model}
-# 1. Ensure pH is numeric for regression, but keep Trial as a Factor
-ph_data_reg <- ph_data
-ph_data_reg$pH    <- as.numeric(as.character(ph_data_reg$pH))
-ph_data_reg$Trial <- as.factor(ph_data_reg$Trial)
 
 # 2. Fit specific model: Linear interaction with Trial + Global Quadratic term
-ph_model_final <- lm(Diameter ~ pH:Trial + I(pH^2), data = ph_data_reg)
+ph_model <- lm(Diameter ~ (pH + I(pH^2) + I(pH^3)) * Trial, data = ph_data)
 
 # 3. Print evaluation outputs
 cat("\n--- pH Model Summary ---\n")
-print(summary(ph_model_final))
+print(summary(ph_model))
 
 cat("\n--- ANOVA Table for pH Regression ---\n")
-print(anova(ph_model_final))
+print(anova(ph_model))
 
 # 4. Check assumptions
-plot(ph_model_final, which = 1, main = "Residuals vs Fitted: pH Model")
-plot(ph_model_final, which = 2, main = "Normal Q-Q: pH Model")
+plot(ph_model, which = 1, main = "Residuals vs Fitted: pH Model")
+plot(ph_model, which = 2, main = "Normal Q-Q: pH Model")
 ```
 
