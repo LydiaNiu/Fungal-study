@@ -274,7 +274,7 @@ shapiro.test(residuals(temp_model_final))
 ```{r ph-model}
 
 # 2. Fit specific model: Linear interaction with Trial + Global Quadratic term
-ph_model <- lm(Diameter ~ (pH + I(pH^2) + I(pH^3)) * Trial, data = ph_data)
+ph_model <- lm(Diameter ~ (pH + I(pH^2)) * Trial, data = ph_data)
 
 # 3. Print evaluation outputs
 cat("\n--- pH Model Summary ---\n")
@@ -287,4 +287,35 @@ print(anova(ph_model))
 plot(ph_model, which = 1, main = "Residuals vs Fitted: pH Model")
 plot(ph_model, which = 2, main = "Normal Q-Q: pH Model")
 ```
+```{r}
+plot(ph_model, which = 3, main = "Scale-Location: pH Level Model")
 
+# 2. Cook's Distance (Influential Points)
+# Points 11, 13, and 37 appeared in your other plots; 
+# check if they exceed the dotted red threshold here.
+plot(ph_model, which = 4, main = "Cook's Distance: pH Level Model")
+
+# 3. Durbin-Watson Test (Independence)
+# Requires the 'car' package
+# A result around 2.0 suggests independence.
+if(!require(car)) install.packages("car")
+library(car)
+durbinWatsonTest(ph_model)
+
+# 4. Shapiro-Wilk Test (Formal Normality Check)
+# A p-value > 0.05 means your residuals are normally distributed.
+shapiro.test(residuals(ph_model))
+```
+
+
+```{r}
+ph_model_final <- lm(Diameter ~ (pH) * Trial + I(pH^2), data = ph_data)
+```
+
+```{r}
+cat("\n--- Temperature Model Summary ---\n")
+print(summary(ph_model_final))
+
+cat("\n--- ANOVA Table for Temperature Regression ---\n")
+print(anova(ph_model_final))
+```
