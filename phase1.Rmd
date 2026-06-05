@@ -39,32 +39,6 @@ head(ph_data)
 ```
 ```{r}
 ggplot(temp_data, aes(x = Temp, y = Diameter)) +
-  geom_point(alpha = 0.6) +
-  geom_smooth(method = "lm", formula = y ~ x, se = TRUE) +
-  labs(
-    title = "Linear Relationship between Temperature and Diameter",
-    x = "Temperature",
-    y = "Diameter (cm)"
-  ) +
-  theme_bw()
-
-ggplot(temp_data, aes(x = Temp, y = Diameter)) +
-  geom_point(alpha = 0.6) +
-  geom_smooth(
-    method = "lm",
-    formula = y ~ poly(x, 2),
-    se = TRUE
-  ) +
-  labs(
-    title = "Quadratic Relationship between Temperature and Diameter",
-    x = "Temperature",
-    y = "Diameter (cm)"
-  ) +
-  theme_bw()
-
-library(ggplot2)
-
-ggplot(temp_data, aes(x = Temp, y = Diameter)) +
 
   geom_point(size = 2, alpha = 0.7) +
 
@@ -103,23 +77,6 @@ ggplot(temp_data, aes(x = Temp, y = Diameter)) +
 ```
 
 ```{r}
-ggplot(temp_data, aes(x = Temp, y = Diameter)) +
-  geom_point(color = "grey30", size = 2.5, alpha = 0.7) +
-  geom_smooth(
-    method = "loess",
-    color = "darkblue",
-    fill = "lightblue",
-    linewidth = 1.5
-  ) +
-  labs(
-    title = "LOESS Trend for Temperature",
-    x = "Temperature",
-    y = "Diameter (cm)"
-  ) +
-  theme_bw()
-```
-```{r}
-
 ggplot(ph_data, aes(x = pH, y = Diameter)) +
 
   geom_point(size = 2, alpha = 0.7) +
@@ -208,11 +165,9 @@ ggplot(ph_data, aes(x = as.numeric(as.character(pH)), y = Diameter, color = Tria
 
 # Temp model
 ```{r}
-library(dplyr)
-
-# Filter for rows where Diameter is NOT equal to 0
-temp_data <- temp_data %>% filter(Diameter != 0)
-ph_data   <- ph_data   %>% filter(Diameter != 0)
+# # Filter for rows where Diameter is NOT equal to 0
+# temp_data <- temp_data %>% filter(Diameter != 0)
+# ph_data   <- ph_data   %>% filter(Diameter != 0)
 ```
 
 
@@ -268,6 +223,12 @@ shapiro.test(residuals(temp_model_final))
 
 
 
+
+
+
+
+
+
 # ph model
 
 
@@ -282,12 +243,12 @@ print(summary(ph_model))
 
 cat("\n--- ANOVA Table for pH Regression ---\n")
 print(anova(ph_model))
+```
+```{r}
 
 # 4. Check assumptions
 plot(ph_model, which = 1, main = "Residuals vs Fitted: pH Model")
 plot(ph_model, which = 2, main = "Normal Q-Q: pH Model")
-```
-```{r}
 plot(ph_model, which = 3, main = "Scale-Location: pH Level Model")
 
 # 2. Cook's Distance (Influential Points)
@@ -309,13 +270,15 @@ shapiro.test(residuals(ph_model))
 
 
 ```{r}
-ph_model_final <- lm(Diameter ~ (pH) * Trial + I(pH^2), data = ph_data)
+ph_model_final <- lm(Diameter ~ (pH)+ I(pH^2), data = ph_data)
 ```
 
 ```{r}
-cat("\n--- Temperature Model Summary ---\n")
+cat("\n--- pH level Model Summary ---\n")
 print(summary(ph_model_final))
 
-cat("\n--- ANOVA Table for Temperature Regression ---\n")
+cat("\n--- ANOVA Table for pH level Regression ---\n")
 print(anova(ph_model_final))
 ```
+
+
