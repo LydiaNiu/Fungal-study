@@ -37,6 +37,65 @@ names(ph_data)[names(ph_data) == "Diameter..cm."] <- "Diameter"
 head(temp_data)
 head(ph_data)
 ```
+
+
+
+```{r}
+# Temperature Interaction Plot
+ggplot(temp_data, aes(x = as.numeric(as.character(Temp)), y = Diameter, 
+                      color = as.factor(Trial), group = Trial)) +
+  stat_summary(fun = mean, geom = "line", size = 1) +
+  stat_summary(fun = mean, geom = "point", size = 3) +
+  scale_color_brewer(palette = "Set1") + # This gives you the Red/Blue distinct colors
+  labs(title = "Interaction Plot: Mean Fungal Growth across Temperatures",
+       x = "Temperature",
+       y = "Mean Diameter (cm)",
+       color = "Trial") +
+  theme_classic()
+
+# Temperature: Colorful Panels with 95% CI
+ggplot(temp_data, aes(x = as.factor(Temp), y = Diameter, color = as.factor(Temp))) +
+  stat_summary(fun.data = mean_cl_normal, geom = "errorbar", width = 0.2, size = 1) +
+  stat_summary(fun = mean, geom = "point", size = 3.5, shape = 18) +
+  facet_grid(. ~ Trial, labeller = label_both) +
+  labs(
+    title = "Mean Fungal Growth (95% CI) Across Temperature Treatments",
+    subtitle = "Separated by Experimental Trial to view distribution consistency",
+    x = "Temperature Level",
+    y = "Colony Diameter (cm)"
+  ) +
+  theme_bw() +
+  theme(legend.position = "none")
+```
+
+```{r}
+# pH Interaction Plot
+ggplot(ph_data, aes(x = as.numeric(as.character(pH)), y = Diameter, 
+                    color = as.factor(Trial), group = Trial)) +
+  stat_summary(fun = mean, geom = "line", size = 1) +
+  stat_summary(fun = mean, geom = "point", size = 3) +
+  scale_color_brewer(palette = "Set1") + 
+  labs(title = "Interaction Plot: Mean Fungal Growth across pH Levels",
+       x = "pH Level",
+       y = "Mean Diameter (cm)",
+       color = "Trial") +
+  theme_classic()
+
+# pH: Colorful Panels with 95% CI
+ggplot(ph_data, aes(x = as.factor(pH), y = Diameter, color = as.factor(pH))) +
+  stat_summary(fun.data = mean_cl_normal, geom = "errorbar", width = 0.2, size = 1) +
+  stat_summary(fun = mean, geom = "point", size = 3.5, shape = 18) +
+  facet_grid(. ~ Trial, labeller = label_both) +
+  labs(
+    title = "Mean Fungal Growth (95% CI) Across pH Treatments",
+    subtitle = "Separated by Experimental Trial to highlight interaction changes",
+    x = "pH Level",
+    y = "Colony Diameter (cm)"
+  ) +
+  theme_bw() +
+  theme(legend.position = "none")
+```
+
 ```{r}
 ggplot(temp_data, aes(x = Temp, y = Diameter)) +
 
@@ -112,85 +171,63 @@ ggplot(ph_data, aes(x = pH, y = Diameter)) +
   theme_bw()
 ```
 
-```{r}
-# For Temperature Data: Clear Mean + 95% CI Plot broken down by Trial panels
-ggplot(temp_data, aes(x = Temp, y = Diameter, color = Temp)) +
-  stat_summary(fun.data = mean_cl_normal, geom = "errorbar", width = 0.2, size = 1) +
-  stat_summary(fun = mean, geom = "point", size = 3.5, shape = 18) +
-  facet_grid(. ~ Trial, labeller = label_both) +
-  labs(
-    title = "Mean Fungal Growth (95% CI) Across Temperature Treatments",
-    subtitle = "Separated by Experimental Trial to view distribution consistency",
-    x = "Temperature Level",
-    y = "Colony Diameter (cm)"
-  ) +
-  theme_bw() +
-  theme(legend.position = "none") # Legend hidden because x-axis already displays temperature labels
 
-# For pH Data: Clear Mean + 95% CI Plot broken down by Trial panels
-ggplot(ph_data, aes(x = pH, y = Diameter, color = pH)) +
-  stat_summary(fun.data = mean_cl_normal, geom = "errorbar", width = 0.2, size = 1) +
-  stat_summary(fun = mean, geom = "point", size = 3.5, shape = 18) +
-  facet_grid(. ~ Trial, labeller = label_both) +
-  labs(
-    title = "Mean Fungal Growth (95% CI) Across pH Treatments",
-    subtitle = "Separated by Experimental Trial to highlight interaction changes",
-    x = "pH Level",
-    y = "Colony Diameter (cm)"
-  ) +
-  theme_bw() +
-  theme(legend.position = "none")
-```
-```{r}
-# Temperature Interaction Plot
-ggplot(temp_data, aes(x = as.numeric(as.character(Temp)), y = Diameter, color = Trial, group = Trial)) +
-  stat_summary(fun = mean, geom = "line", size = 1) +
-  stat_summary(fun = mean, geom = "point", size = 3) +
-  labs(title = "Interaction Plot: Mean Fungal Growth across Temperatures",
-       x = "Temperature",
-       y = "Mean Diameter (cm)") +
-  theme_classic()
 
-# pH Interaction Plot
-ggplot(ph_data, aes(x = as.numeric(as.character(pH)), y = Diameter, color = Trial, group = Trial)) +
-  stat_summary(fun = mean, geom = "line", size = 1) +
-  stat_summary(fun = mean, geom = "point", size = 3) +
-  labs(title = "Interaction Plot: Mean Fungal Growth across pH Levels",
-       x = "pH Level",
-       y = "Mean Diameter (cm)") +
-  theme_classic()
+
+
+
+
+
+```{r}
+# # Filter for rows where Diameter is NOT equal to 0
+temp_data <- temp_data %>% filter(Diameter != 0)
+ph_data   <- ph_data   %>% filter(Diameter != 0)
 ```
+
+
+```{r}
+# 1. Fit the three nested models
+temp_linear <- lm(Diameter ~ Temp, data = temp_data)
+temp_quad   <- lm(Diameter ~ Temp + I(Temp^2), data = temp_data)
+temp_cubic  <- lm(Diameter ~ (Temp + I(Temp^2) + I(Temp^3)), data = temp_data)
+
+# 2. Perform the ANOVA Likelihood Ratio Test
+temp_comparison <- anova(temp_linear, temp_quad, temp_cubic)
+print(temp_comparison)
+```
+
+```{r}
+# 1. Fit the nested models
+ph_linear <- lm(Diameter ~ pH, data = ph_data)
+ph_quad   <- lm(Diameter ~ pH + I(pH^2), data = ph_data)
+
+# 2. Perform the ANOVA Likelihood Ratio Test
+ph_comparison <- anova(ph_linear, ph_quad)
+print(ph_comparison)
+```
+
+
+
+
+
+
+
+
 
 
 
 # Temp model
-```{r}
-# # Filter for rows where Diameter is NOT equal to 0
-# temp_data <- temp_data %>% filter(Diameter != 0)
-# ph_data   <- ph_data   %>% filter(Diameter != 0)
-```
-
-
 ```{r temp-model}
-# 2. Fit basic quadratic model (No Trial factor included)
 temp_model <- lm(Diameter ~ (Temp + I(Temp^2) + I(Temp^3)) * Trial, data = temp_data)
 
-# 3. Print evaluation outputs
 cat("\n--- Temperature Model Summary ---\n")
 print(summary(temp_model))
 
 cat("\n--- ANOVA Table for Temperature Regression ---\n")
 print(anova(temp_model))
-
-temp_model_final <- lm(Diameter ~ (Temp + I(Temp^2) + I(Temp^3)), data = temp_data)
-
-
-# 4. Check assumptions
-plot(temp_model_final, which = 1, main = "Residuals vs Fitted: Temperature Model")
-plot(temp_model_final, which = 2, main = "Normal Q-Q: Temperature Model")
-
 ```
 ```{r}
+temp_model_final <- lm(Diameter ~ (Temp + I(Temp^2) + I(Temp^3)), data = temp_data)
 cat("\n--- Temperature Model Summary ---\n")
 print(summary(temp_model_final))
 
@@ -199,24 +236,10 @@ print(anova(temp_model_final))
 ```
 
 ```{r}
-# 1. Scale-Location Plot (Homoscedasticity)
-# Look for a flat horizontal red line with random point spread
-plot(temp_model_final, which = 3, main = "Scale-Location: Temperature Model")
-
-# 2. Cook's Distance (Influential Points)
-# Points 11, 13, and 37 appeared in your other plots; 
-# check if they exceed the dotted red threshold here.
-plot(temp_model_final, which = 4, main = "Cook's Distance: Temperature Model")
-
-# 3. Durbin-Watson Test (Independence)
-# Requires the 'car' package
-# A result around 2.0 suggests independence.
-if(!require(car)) install.packages("car")
-library(car)
+plot(temp_model_final, which = 1, main = "Residuals vs Fitted: Temperature Model")
+plot(temp_model_final, which = 2, main = "Normal Q-Q: Temperature Model")
+plot(temp_model_final, which = 3, main = "Scale-Location: pH Level Model")
 durbinWatsonTest(temp_model_final)
-
-# 4. Shapiro-Wilk Test (Formal Normality Check)
-# A p-value > 0.05 means your residuals are normally distributed.
 shapiro.test(residuals(temp_model_final))
 ```
 
@@ -233,52 +256,36 @@ shapiro.test(residuals(temp_model_final))
 
 
 ```{r ph-model}
-
-# 2. Fit specific model: Linear interaction with Trial + Global Quadratic term
 ph_model <- lm(Diameter ~ (pH + I(pH^2)) * Trial, data = ph_data)
 
-# 3. Print evaluation outputs
 cat("\n--- pH Model Summary ---\n")
 print(summary(ph_model))
 
 cat("\n--- ANOVA Table for pH Regression ---\n")
 print(anova(ph_model))
 ```
-```{r}
+```{r ph-model}
+ph_model_final <- lm(Diameter ~ (pH) * Trial + I(pH^2), data = ph_data)
 
-# 4. Check assumptions
-plot(ph_model, which = 1, main = "Residuals vs Fitted: pH Model")
-plot(ph_model, which = 2, main = "Normal Q-Q: pH Model")
-plot(ph_model, which = 3, main = "Scale-Location: pH Level Model")
-
-# 2. Cook's Distance (Influential Points)
-# Points 11, 13, and 37 appeared in your other plots; 
-# check if they exceed the dotted red threshold here.
-plot(ph_model, which = 4, main = "Cook's Distance: pH Level Model")
-
-# 3. Durbin-Watson Test (Independence)
-# Requires the 'car' package
-# A result around 2.0 suggests independence.
-if(!require(car)) install.packages("car")
-library(car)
-durbinWatsonTest(ph_model)
-
-# 4. Shapiro-Wilk Test (Formal Normality Check)
-# A p-value > 0.05 means your residuals are normally distributed.
-shapiro.test(residuals(ph_model))
-```
-
-
-```{r}
-ph_model_final <- lm(Diameter ~ (pH)+ I(pH^2), data = ph_data)
-```
-
-```{r}
-cat("\n--- pH level Model Summary ---\n")
+cat("\n--- pH Model Summary ---\n")
 print(summary(ph_model_final))
 
-cat("\n--- ANOVA Table for pH level Regression ---\n")
+cat("\n--- ANOVA Table for pH Regression ---\n")
 print(anova(ph_model_final))
+```
+
+```{r}
+trial_comparison <- anova(ph_model_final, ph_model)
+print(trial_comparison)
+```
+
+
+```{r}
+plot(ph_model_final, which = 1, main = "Residuals vs Fitted: pH Model")
+plot(ph_model_final, which = 2, main = "Normal Q-Q: pH Model")
+plot(ph_model_final, which = 3, main = "Scale-Location: pH Level Model")
+durbinWatsonTest(ph_model_final)
+shapiro.test(residuals(ph_model_final))
 ```
 
 
