@@ -1,0 +1,268 @@
+---
+title: "183 Final Project R code"
+output: pdf_document
+date: "2026-05-05"
+---
+
+```{r}
+# install.packages("readxl")
+# install.packages("ggplot2")
+# install.packages("dplyr")
+# install.packages("car")
+library(readxl)
+library(ggplot2)
+library(dplyr)
+library(car)
+```
+
+```{r}
+# Set working directory if needed
+# setwd("your/path/here")
+
+# Read Excel file
+temp <- read.csv("temp.csv")
+ph <- read.csv("ph.csv")
+temp_data <- temp[0:4]
+ph_data <- ph[0:4]
+
+# Ensure 'trial' and the treatment variables are factors for ANOVA
+temp_data$Trial <- as.numeric(temp_data$Trial)
+temp_data$Temp  <- as.numeric(temp_data$Temp)
+
+ph_data$Trial <- as.numeric(ph_data$Trial)
+ph_data$pH    <- as.numeric(ph_data$pH)
+
+names(temp_data)[names(temp_data) == "Diameter..cm."] <- "Diameter"
+names(ph_data)[names(ph_data) == "Diameter..cm."] <- "Diameter"
+
+head(temp_data)
+head(ph_data)
+```
+
+# EDA
+
+```{r}
+# Temperature Interaction Plot
+ggplot(temp_data, aes(x = as.numeric(as.character(Temp)), y = Diameter, 
+                      color = as.factor(Trial), group = Trial)) +
+  stat_summary(fun = mean, geom = "line", size = 1) +
+  stat_summary(fun = mean, geom = "point", size = 3) +
+  scale_color_brewer(palette = "Set1") + # This gives you the Red/Blue distinct colors
+  labs(title = "Interaction Plot: Mean Fungal Growth across Temperatures",
+       x = "Temperature",
+       y = "Mean Diameter (cm)",
+       color = "Trial") +
+  theme_classic()
+
+# Temperature: Colorful Panels with 95% CI
+ggplot(temp_data, aes(x = as.factor(Temp), y = Diameter, color = as.factor(Temp))) +
+  stat_summary(fun.data = mean_cl_normal, geom = "errorbar", width = 0.2, size = 1) +
+  stat_summary(fun = mean, geom = "point", size = 3.5, shape = 18) +
+  facet_grid(. ~ Trial, labeller = label_both) +
+  labs(
+    title = "Mean Fungal Growth (95% CI) Across Temperature Treatments",
+    subtitle = "Separated by Experimental Trial to view distribution consistency",
+    x = "Temperature Level",
+    y = "Colony Diameter (cm)"
+  ) +
+  theme_bw() +
+  theme(legend.position = "none")
+```
+
+```{r}
+# pH Interaction Plot
+ggplot(ph_data, aes(x = as.numeric(as.character(pH)), y = Diameter, 
+                    color = as.factor(Trial), group = Trial)) +
+  stat_summary(fun = mean, geom = "line", size = 1) +
+  stat_summary(fun = mean, geom = "point", size = 3) +
+  scale_color_brewer(palette = "Set1") + 
+  labs(title = "Interaction Plot: Mean Fungal Growth across pH Levels",
+       x = "pH Level",
+       y = "Mean Diameter (cm)",
+       color = "Trial") +
+  theme_classic()
+
+# pH: Colorful Panels with 95% CI
+ggplot(ph_data, aes(x = as.factor(pH), y = Diameter, color = as.factor(pH))) +
+  stat_summary(fun.data = mean_cl_normal, geom = "errorbar", width = 0.2, size = 1) +
+  stat_summary(fun = mean, geom = "point", size = 3.5, shape = 18) +
+  facet_grid(. ~ Trial, labeller = label_both) +
+  labs(
+    title = "Mean Fungal Growth (95% CI) Across pH Treatments",
+    subtitle = "Separated by Experimental Trial to highlight interaction changes",
+    x = "pH Level",
+    y = "Colony Diameter (cm)"
+  ) +
+  theme_bw() +
+  theme(legend.position = "none")
+```
+
+```{r}
+ggplot(temp_data, aes(x = Temp, y = Diameter)) +
+
+  geom_point(size = 2, alpha = 0.7) +
+
+  # Linear
+  geom_smooth(
+    method = "lm",
+    formula = y ~ x,
+    aes(linetype = "Linear"),
+    se = FALSE
+  ) +
+
+  # Quadratic
+  geom_smooth(
+    method = "lm",
+    formula = y ~ poly(x, 2),
+    aes(linetype = "Quadratic"),
+    se = FALSE
+  ) +
+
+  # Cubic
+  geom_smooth(
+    method = "lm",
+    formula = y ~ poly(x, 3),
+    aes(linetype = "Cubic"),
+    se = FALSE
+  ) +
+
+  labs(
+    title = "Temperature Effect on Fungal Growth",
+    x = "Temperature",
+    y = "Diameter (cm)",
+    linetype = "Model"
+  ) +
+
+  theme_bw()
+```
+
+```{r}
+ggplot(ph_data, aes(x = pH, y = Diameter)) +
+
+  geom_point(size = 2, alpha = 0.7) +
+
+  geom_smooth(
+    method = "lm",
+    formula = y ~ x,
+    aes(linetype = "Linear"),
+    se = FALSE
+  ) +
+
+  geom_smooth(
+    method = "lm",
+    formula = y ~ poly(x, 2),
+    aes(linetype = "Quadratic"),
+    se = FALSE
+  ) +
+
+  geom_smooth(
+    method = "lm",
+    formula = y ~ poly(x, 3),
+    aes(linetype = "Cubic"),
+    se = FALSE
+  ) +
+
+  labs(
+    title = "pH Effect on Fungal Growth",
+    x = "pH",
+    y = "Diameter (cm)",
+    linetype = "Model"
+  ) +
+
+  theme_bw()
+```
+
+```{r}
+# # Filter for rows where Diameter is NOT equal to 0
+temp_data <- temp_data %>% filter(Diameter != 0)
+ph_data   <- ph_data   %>% filter(Diameter != 0)
+```
+
+```{r}
+# 1. Fit the three nested models
+temp_linear <- lm(Diameter ~ Temp, data = temp_data)
+temp_quad   <- lm(Diameter ~ Temp + I(Temp^2), data = temp_data)
+temp_cubic  <- lm(Diameter ~ (Temp + I(Temp^2) + I(Temp^3)), data = temp_data)
+
+# 2. Perform the ANOVA Likelihood Ratio Test
+temp_comparison <- anova(temp_linear, temp_quad, temp_cubic)
+print(temp_comparison)
+```
+
+```{r}
+# 1. Fit the nested models
+ph_linear <- lm(Diameter ~ pH, data = ph_data)
+ph_quad   <- lm(Diameter ~ pH + I(pH^2), data = ph_data)
+
+# 2. Perform the ANOVA Likelihood Ratio Test
+ph_comparison <- anova(ph_linear, ph_quad)
+print(ph_comparison)
+```
+
+# Temp model
+
+```{r temp-model}
+temp_model <- lm(Diameter ~ (Temp + I(Temp^2) + I(Temp^3)) * Trial, data = temp_data)
+
+cat("\n--- Temperature Model Summary ---\n")
+print(summary(temp_model))
+
+cat("\n--- ANOVA Table for Temperature Regression ---\n")
+print(anova(temp_model))
+```
+
+```{r}
+temp_model_final <- lm(Diameter ~ (Temp + I(Temp^2) + I(Temp^3)), data = temp_data)
+cat("\n--- Temperature Model Summary ---\n")
+print(summary(temp_model_final))
+
+cat("\n--- ANOVA Table for Temperature Regression ---\n")
+print(anova(temp_model_final))
+```
+
+### assumption check
+
+```{r}
+plot(temp_model_final, which = 1, main = "Residuals vs Fitted: Temperature Model")
+plot(temp_model_final, which = 2, main = "Normal Q-Q: Temperature Model")
+plot(temp_model_final, which = 3, main = "Scale-Location: pH Level Model")
+durbinWatsonTest(temp_model_final)
+shapiro.test(residuals(temp_model_final))
+```
+
+# ph model
+
+```{r phmodel}
+ph_model <- lm(Diameter ~ (pH + I(pH^2)) * Trial, data = ph_data)
+
+cat("\n--- pH Model Summary ---\n")
+print(summary(ph_model))
+
+cat("\n--- ANOVA Table for pH Regression ---\n")
+print(anova(ph_model))
+```
+
+```{r ph-model}
+ph_model_final <- lm(Diameter ~ (pH) * Trial + I(pH^2), data = ph_data)
+
+cat("\n--- pH Model Summary ---\n")
+print(summary(ph_model_final))
+
+cat("\n--- ANOVA Table for pH Regression ---\n")
+print(anova(ph_model_final))
+```
+
+```{r}
+trial_comparison <- anova(ph_model_final, ph_model)
+print(trial_comparison)
+```
+
+### assumption check
+
+```{r}
+plot(ph_model_final, which = 1, main = "Residuals vs Fitted: pH Model")
+plot(ph_model_final, which = 2, main = "Normal Q-Q: pH Model")
+plot(ph_model_final, which = 3, main = "Scale-Location: pH Level Model")
+durbinWatsonTest(ph_model_final)
+shapiro.test(residuals(ph_model_final))
+```
